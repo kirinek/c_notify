@@ -2,46 +2,41 @@ __author__ = 'kuroi'
 
 import sys
 import os
+sys.path.append(os.path.join(sys.path[0], 'scrpts'))
+sys.path.append(os.path.join(sys.path[0], 'ui'))
+
 from PyQt4 import QtCore, QtGui
 from date_set_gui import Ui_date_set
 import sqlite3
-from g_classes import *
+from g_classes import CalendarTemplates
+
+
+def check_path(directory, file=None):
+    if file:
+        return os.path.isfile(os.path.join(sys.path[0], directory, file))
+    return os.path.isdir(os.path.join(sys.path[0], directory))
+
 
 periods = CalendarTemplates()
 init_dict = {'NAME': '', 'PHONE': '', 'P_DATE': '', 'C_DATE': '', 'COMMENT': '',
              'INFORMED': '', 'AGREED': '', 'CONTRACT': '', 'B_B': '', 'B_A': ''}
 search_dict = {'NAME': '', 'PHONE': '', 'P_DATE': '', 'C_DATE': '', 'COMMENT': '',
                'INFORMED': '', 'AGREED': '', 'CONTRACT': '', 'B_B': '', 'B_A': ''}
-db_path_name = './dbs/cn.db'
-input_path = './input/'
+if check_path('scripts', 'cn.conf'):
+    prefix = 'NTS-'
+else:
+    pass                            # TODO: insert an initialization window
+
+if check_path('dbs', 'cn.db') and check_path('input') and check_path('art'):
+    db_path_name = os.path.join(sys.path[0], 'dbs', 'cn.db')
+    input_path = os.path.join(sys.path[0], 'input')
+    art_path = os.path.join(sys.path[0], 'art')
+else:
+    exit()
 
 
 def initialize():
-
     from parsers import import_from_txt
-
-    if not os.path.exists(db_path_name):                                # if there is no such file or dir
-        db_connection = sqlite3.connect(db_path_name)                   # create one, connect and create a table.
-        db_connection.execute('PRAGMA foreign_keys = ON')               # foreign_keys are off by default
-        db_connection.execute('''CREATE TABLE NAMES (
-        CUSTOMER_ID     INT     PRIMARY KEY NOT NULL,
-        NAME    TEXT    NOT NULL,
-        PHONE   INT,    COMMENT TEXT,
-        AGREED  TEXT    NOT NULL
-        )''')
-        db_connection.execute('''CREATE TABLE NOTIFY (
-        ID      INT     PRIMARY KEY NOT NULL,
-        CUSTOMER_ID     INT         NOT NULL,
-        P_DATE  TEXT    NOT NULL,   C_DATE      TEXT    NOT_NULL,
-        INFORMED    TEXT    NOT NULL,
-        CONTRACT    TEXT    NOT NULL,
-        B_B     TEXT    NOT NULL,   B_A         TEXT    NOT NULL
-        )''')
-        db_connection.close()
-
-    if not os.path.isfile(db_path_name):                                # if the given path and name exist
-        print('something wrong with database file. shutting down')      # something is broken.
-        return 13
 
     if periods.today.date.dayOfWeek() < 5:                              # setting initial period to display
         init_dict['C_DATE'] = periods.this_week.to_sql()                # whether it's current week
@@ -52,7 +47,7 @@ def initialize():
     init_dict['B_B'] = 'Нет'
     init_dict['B_A'] = 'Нет'
 
-    import_from_txt(db_path_name, input_path)                           # execute parsing of new text tables from 1C
+    import_from_txt(db_path_name, input_path, prefix)                   # execute parsing of new text tables from 1C
 
 
 def search_db(search=search_dict):                                 # TODO: unite search_strings() & run_query()
@@ -77,7 +72,7 @@ def search_db(search=search_dict):                                 # TODO: unite
                 query_strings.append('(' + item_name + ' == ?)')
                 query_args.append(item)
     query_strings = '''SELECT NAME, PHONE, P_DATE, C_DATE, COMMENT, INFORMED, AGREED, CONTRACT, B_B, B_A, ID
-                      FROM NOTIFY NATURAL JOIN NAMES WHERE ''' + ' AND '.join(str(s) for s in query_strings)
+                      FROM NOTIFY NATURAL JOIN NAMES WHERE ''' + ' AND '.join(str(s) for s in query_strings) + ' ORDER BY C_DATE, ID ASC'
     query_args = tuple(query_args)
 
     db_connection = sqlite3.connect(db_path_name)
@@ -508,10 +503,10 @@ class WindowMain(QtGui.QMainWindow):
 class SysTrayIcon(QtGui.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
 
-        QtGui.QSystemTrayIcon.__init__(self, icon, parent)      # init my brand new tray icon
+        QtGui.QSystemTrayIcon.__init__(self, icon, parent)      # init my brand new tray ic
 
-        self.startTimer(1800000)                                # This stands for a half an hour
-        self.startTimer(60000)                                  # TODO: left in testing purpose. delete on compile.
+        self.startTimer(1200000)                                # This stands for a half an hour
+        # self.startTimer(20000)                                  # TODO: left in testing purpose. delete on compile.
 
         self.menu = QtGui.QMenu(parent)                         # create a menu for tray icon
         self.menu.addAction(QtGui.QAction("Показать / скрыть основное окно", self.menu, checkable=True))
@@ -523,7 +518,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
 
         self.connections()                                      # setting new connections
 
-    def timerEvent(self, timer_event=None):
+    def show_message(self):
         number_of_clients = len(search_db(init_dict))
         string_one = 'Внимание'
         print(QtCore.QTime.currentTime().toString())            # TODO: left in testing purpose. delete on compile.
@@ -540,7 +535,10 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         else:
             string_two = 'Осталось еще ' + str(number_of_clients) + ' неоповещенных клиентов'
 
-        self.showMessage(string_one, string_two, msecs=100000)
+        self.showMessage(string_one, string_two, msecs=300000)
+
+    def timerEvent(self, timer_event=None):
+        self.show_message()
 
     def show_hide(self):
         if self.menu.actions()[0].isChecked():
@@ -562,6 +560,7 @@ class MyWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         self.tray = SysTrayIcon(QtGui.QIcon("./art/tray_icon.png"), self)
         self.tray.show()
+        self.tray.show_message()
         self.main_form = WindowMain(self)                                       # creating main window with table
 
     def close_app(self):

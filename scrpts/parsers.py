@@ -35,7 +35,7 @@ def flag_check(db_file='./dbs/cn.db'):
     db_connect.close()
 
 
-def import_from_txt(db_file='./dbs/cn.db', input_path='./input/'):
+def import_from_txt(db_file='./dbs/cn.db', input_path='./input/', prefix='NTS-'):
     """This function provides parsing and importing data from text tables provided by 1C into SQLite database.
     Typical string from 1C tables is:
     Реализация товаров и услуг NTS-0000000 от 01.01.2001 00:00:00\tCustomer's name, 89000000000\t01.02.2001\t1\n
@@ -51,31 +51,24 @@ def import_from_txt(db_file='./dbs/cn.db', input_path='./input/'):
     #     return 12
 
     sub_0 = 'Параметры'                                 # just some magic strings.
-    sub_1 = 'NTM-'
-    sub_2 = 'от '
 
     imported_files = [f for f in os.listdir(input_path) if f[-4:] == '.txt']    # a list of files on import.
 
     if not imported_files:                              # if the list is empty
-        # from no_input_gui import Ui_no_input          # TODO: write call of modal error-window!
-        # warn = Ui_no_input()
-        # warn.setupUi()
         print('no files to parse')                      # nothing special, just nothing to import.
         return
 
     for file in imported_files:                         # listing all files in the given directory
-        file = input_path + file
-        txt_read = open(file).readlines()               # opening the text file with table by strings
+        file = os.path.join(input_path, file)
+        txt_read = open(file, 'r', encoding='UTF8').readlines()     # opening the text file with table by strings
 
-        if sub_0 in txt_read[1]:                        # if there is an unwanted string in the end of file
-            txt_read.pop(-1)                            # pop it too.
-        else:                                           # this line is also a marker for not yet imported table
-            continue                                    # so if there is no line with sub_0 -- continue to the next file
+        if sub_0 not in txt_read[1]:
+            continue                                    # if there is no line with sub_0 -- continue to the next file
 
-        while sub_1 not in txt_read[0]:                 # if there are garbage lines in the beginning of file
+        while prefix not in txt_read[0]:                # if there are garbage lines in the beginning of file
             txt_read.pop(0)                             # just pop them out
 
-        with open(file, 'w') as txt_write:              # now we need to write changes
+        with open(file, 'w', encoding='UTF8') as txt_write:              # now we need to write changes
             txt_write.writelines(txt_read)              # so that future listing knew we already used this table.
 
         db_connect = sqlite3.connect(db_file)           # connecting to the db.
